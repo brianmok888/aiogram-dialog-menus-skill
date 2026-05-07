@@ -99,7 +99,7 @@ main_window = Window(
 
 ```python
 dialog = Dialog(main_window)
-dialog.register(dp, None, MainMenu.main)
+dp.include_router(dialog)
 ```
 
 ### 5. Start Dialog
@@ -270,6 +270,29 @@ async def on_date_selected(callback, widget, manager: DialogManager, selected_da
 managed = manager.find("calendar")  # Returns ManagedCalendar
 ```
 
+#### TimeSelect
+
+```python
+from datetime import time
+from aiogram_dialog.widgets.kbd import TimeSelect
+
+TimeSelect(
+    id="time_picker",
+    hour_width=6,           # Number of columns for hour grid
+    minute_width=6,         # Number of columns for minute grid
+    minute_precision=5,     # Minute step (1, 5, 10, 15, 30)
+    on_value_changed=on_time_changed,
+)
+
+async def on_time_changed(callback, widget, manager: DialogManager, value: time):
+    manager.dialog_data["selected_time"] = value.isoformat()
+
+# Access time state programmatically
+managed = manager.find("time_picker")  # Returns ManagedTimeSelect
+current = managed.get_value()           # Returns time | None
+await managed.set_value(time(14, 30))   # Set programmatically
+```
+
 #### Counter
 
 ```python
@@ -343,6 +366,16 @@ Row(
 
 # Numbered page buttons
 NumberedPager(scroll="scroll_group", id="pager")
+
+# Jump to a specific page (e.g., page 2)
+from aiogram_dialog.widgets.kbd import SwitchPage
+
+SwitchPage(
+    text=Const("Go to Page 2"),
+    page=2,
+    scroll="scroll_group",
+    id="switch_p2",
+)
 ```
 
 #### URL & Special Buttons
@@ -374,7 +407,7 @@ SwitchInlineQueryChosenChatButton(Const("💬 Choose Chat"), query=Const("search
 
 #### Request Buttons
 
-These create reply keyboard buttons (not inline). No `id` parameter.
+These create inline keyboard buttons. No `id` parameter.
 
 ```python
 from aiogram_dialog.widgets.kbd import RequestContact, RequestLocation, RequestPoll
@@ -521,6 +554,19 @@ Jinja("""
 {% endfor %}
 Total: {{ total }}$
 """)
+```
+
+#### ScrollingText
+
+```python
+from aiogram_dialog.widgets.text import ScrollingText
+
+# Paginate long text content (e.g., terms of service, logs)
+ScrollingText(
+    text=Format("{long_text}"),
+    id="scrolling_text",
+    page_size=500,  # Characters per page (0 = auto)
+)
 ```
 
 ### Input Widgets
@@ -711,8 +757,8 @@ async def background_task(bg_manager):
     bg_manager.dialog_data["result"] = "done"
     await bg_manager.update()
 
-    # Foreground mode for full dialog manager access
-    with bg_manager.fg() as dialog_manager:
+    # Foreground mode for full dialog manager access (async context manager)
+    async with bg_manager.fg() as dialog_manager:
         dialog_manager.dialog_data["key"] = value
         await dialog_manager.update()
 
@@ -736,8 +782,9 @@ from aiogram_dialog.widgets.text import Const
 
 dialog = Dialog(
     Window(Const("Main menu"), state=MainMenu.main),
-    on_process_unknown=Const("Unknown action. Please use the menu."),
 )
+# Note: Unknown callback handling is done via dispatcher error handlers
+# (see UnknownIntent & UnknownState below), NOT via Dialog constructor params.
 ```
 
 ### UnknownIntent & UnknownState
@@ -1069,6 +1116,7 @@ manager.dialog_data["key"] = value
 | `Toggle` | Toggle between items | `ManagedToggle` |
 | `Checkbox` | Boolean toggle | `ManagedCheckbox` |
 | `Calendar` | Date picker | `ManagedCalendar` |
+| `TimeSelect` | Time picker | `ManagedTimeSelect` |
 | `Counter` | +/- number input | `ManagedCounter` |
 | `ListGroup` | Dynamic button list | `ManagedListGroup` |
 | `Url` | Open URL button | — |
