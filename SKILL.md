@@ -25,10 +25,10 @@ Expert knowledge for building interactive Telegram bot menus using the `aiogram_
 ## Prerequisites
 
 ```bash
-pip install aiogram>=3.14 aiogram-dialog>=2.0
+pip install "aiogram>=3.14.0" "aiogram-dialog>=2.6.0"
 ```
 
-- Python 3.9+
+- Python 3.10+
 - aiogram 3.14+
 - aiogram-dialog 2.x (latest: 2.6.0)
 
@@ -164,6 +164,7 @@ All navigation widgets accept optional `on_click` and `show_mode` parameters.
 
 ```python
 from aiogram_dialog.widgets.kbd import Select
+from aiogram_dialog.widgets.text import Format
 
 async def get_items(**kwargs):
     return {"items": ["Option A", "Option B", "Option C"]}
@@ -172,7 +173,7 @@ async def on_item_selected(callback, select, manager: DialogManager, item_id: st
     await callback.answer(f"Selected: {item_id}")
 
 Select(
-    Const("{item}"),  # Text template
+    Format("{item}"),  # Text template
     id="item_select",
     item_id_getter=lambda x: x,  # Extract ID from item
     items="items",  # Key in getter data
@@ -184,6 +185,7 @@ Select(
 
 ```python
 from aiogram_dialog.widgets.kbd import Multiselect
+from aiogram_dialog.widgets.text import Format
 
 async def get_options(**kwargs):
     return {
@@ -194,8 +196,8 @@ async def get_options(**kwargs):
     }
 
 Multiselect(
-    Const("✓ {item[name]}"),  # Checked format
-    Const("  {item[name]}"),  # Unchecked format
+    Format("✓ {item[name]}"),  # Checked format
+    Format("  {item[name]}"),  # Unchecked format
     id="multi_select",
     item_id_getter=lambda x: x["id"],
     items="options",
@@ -206,10 +208,11 @@ Multiselect(
 
 ```python
 from aiogram_dialog.widgets.kbd import Radio
+from aiogram_dialog.widgets.text import Format
 
 Radio(
-    Const("◉ {item}"),  # Selected
-    Const("○ {item}"),  # Unselected
+    Format("◉ {item}"),  # Selected
+    Format("○ {item}"),  # Unselected
     id="radio_group",
     item_id_getter=lambda x: x,
     items="choices",
@@ -220,10 +223,11 @@ Radio(
 
 ```python
 from aiogram_dialog.widgets.kbd import Toggle
+from aiogram_dialog.widgets.text import Format
 
 # Simpler than Radio — toggles between elements when clicked
 Toggle(
-    Const("{item}"),
+    Format("{item}"),
     id="theme_toggle",
     items=["light", "dark"],
     item_id_getter=lambda x: x,
@@ -246,7 +250,8 @@ Checkbox(
 #### Calendar
 
 ```python
-from aiogram_dialog.widgets.kbd import Calendar, CalendarConfig, CalendarScope
+from datetime import date
+from aiogram_dialog.widgets.kbd import Calendar, CalendarConfig
 
 # Basic calendar
 Calendar(id="calendar", on_click=on_date_selected)
@@ -255,9 +260,10 @@ Calendar(id="calendar", on_click=on_date_selected)
 Calendar(
     id="calendar",
     config=CalendarConfig(
-        min_date=datetime(2024, 1, 1),
-        max_date=datetime(2026, 12, 31),
-        scopes=[CalendarScope.DAYS, CalendarScope.MONTHS, CalendarScope.YEARS],
+        min_date=date(2024, 1, 1),
+        max_date=date(2026, 12, 31),
+        month_columns=3,
+        years_per_page=20,
     ),
     on_click=on_date_selected,
 )
@@ -330,11 +336,12 @@ ListGroup(
 #### ScrollingGroup
 
 ```python
-from aiogram_dialog.widgets.kbd import ScrollingGroup
+from aiogram_dialog.widgets.kbd import ScrollingGroup, Select
+from aiogram_dialog.widgets.text import Format
 
 ScrollingGroup(
     Select(
-        Const("{item}"),
+        Format("{item}"),
         id="scroll_select",
         item_id_getter=lambda x: x,
         items="long_list",
@@ -407,7 +414,7 @@ SwitchInlineQueryChosenChatButton(Const("💬 Choose Chat"), query=Const("search
 
 #### Request Buttons
 
-These create inline keyboard buttons. No `id` parameter.
+These render Telegram reply-keyboard request buttons (not inline buttons). No `id` parameter.
 
 ```python
 from aiogram_dialog.widgets.kbd import RequestContact, RequestLocation, RequestPoll
@@ -514,7 +521,7 @@ from aiogram_dialog.widgets.text import Progress
 
 # Visual progress bar
 Progress(
-    id="progress",          # or pass a Counter widget
+    "progress",             # field name in getter data, e.g. {"progress": 65}
     width=10,               # bar width in characters
     filled="█",
     empty="░",
@@ -614,6 +621,7 @@ Media widgets are in `aiogram_dialog.widgets.media`. Attach media content to win
 #### StaticMedia
 
 ```python
+from aiogram.types import ContentType
 from aiogram_dialog.widgets.media import StaticMedia
 
 StaticMedia(
@@ -625,28 +633,37 @@ StaticMedia(
 #### DynamicMedia
 
 ```python
+from aiogram.types import ContentType
+from aiogram_dialog.api.entities import MediaAttachment
 from aiogram_dialog.widgets.media import DynamicMedia
 
 # Media determined by getter data
 async def media_getter(dialog_manager: DialogManager, **kwargs):
-    return {"media": InputFile("dynamic.png")}
+    return {"media": MediaAttachment(ContentType.PHOTO, path="dynamic.png")}
 
-DynamicMedia(
-    type=ContentType.PHOTO,
-    getter=media_getter,
-)
+DynamicMedia("media")
 ```
 
 #### MediaScroll
 
 ```python
-from aiogram_dialog.widgets.media import MediaScroll
+from aiogram.types import ContentType
+from aiogram_dialog.api.entities import MediaAttachment
+from aiogram_dialog.widgets.media import DynamicMedia, MediaScroll
+
+async def gallery_getter(dialog_manager: DialogManager, **kwargs):
+    return {
+        "photos": [
+            MediaAttachment(ContentType.PHOTO, path="images/1.png"),
+            MediaAttachment(ContentType.PHOTO, path="images/2.png"),
+        ],
+    }
 
 # Scrollable media gallery
 MediaScroll(
+    DynamicMedia("item"),
     id="gallery",
     items="photos",    # Key in getter data
-    item_id_getter=lambda x: x["file_id"],
 )
 ```
 
@@ -738,7 +755,7 @@ from aiogram_dialog import ShowMode
 
 # Control how messages are updated during navigation
 await manager.switch_to(MyState.settings, show_mode=ShowMode.EDIT)
-await manager.start(MyState.main, show_mode=ShowMode.SEND_AND_EDIT)
+await manager.start(MyState.main, show_mode=ShowMode.SEND)
 ```
 
 ## Background Manager
@@ -746,7 +763,8 @@ await manager.start(MyState.main, show_mode=ShowMode.SEND_AND_EDIT)
 Send dialog updates from background tasks (e.g., after async work completes).
 
 ```python
-from aiogram_dialog import BgManagerFactory
+from aiogram import Bot
+from aiogram_dialog import DEFAULT_STACK_ID, BgManagerFactory, setup_dialogs
 
 # Setup (setup_dialogs returns the factory)
 bg_factory = setup_dialogs(dp)
@@ -762,14 +780,18 @@ async def background_task(bg_manager):
         dialog_manager.dialog_data["key"] = value
         await dialog_manager.update()
 
-# Get bg_manager from dialog manager
-bg_manager = await dialog_manager.bg(
+# Get a background manager from an existing dialog manager (synchronous)
+bg_manager = dialog_manager.bg(
     user_id=user_id,
     chat_id=chat_id,
     stack_id=DEFAULT_STACK_ID,       # Optional
     thread_id=None,                  # Optional (for topics)
     business_connection_id=None,     # Optional (for business bots)
 )
+
+# Or get one from the factory outside a dialog handler
+bot: Bot = ...
+bg_manager = bg_factory.bg(bot=bot, user_id=user_id, chat_id=chat_id)
 ```
 
 ## Error Handling
@@ -1047,6 +1069,9 @@ async def safe_button_click(callback, button, manager: DialogManager):
 8. **Using deprecated `Registry` class** — Use `setup_dialogs(dp)` instead
 9. **Writing custom `on_click` for navigation** — Use `SwitchTo`, `Next`, `Back`, `Cancel`, `Start` widgets instead
 10. **Using plain `Button` for URLs** — Use `Url` widget instead
+11. **Using `Const("{item}")` for dynamic item labels** — Use `Format("{item}")`
+12. **Awaiting `dialog_manager.bg(...)`** — `DialogManager.bg()` is synchronous
+13. **Using old media widget signatures** — Use `DynamicMedia("media")` and `MediaScroll(DynamicMedia("item"), ...)`
 
 ## Migration from v1 to v2
 
@@ -1061,9 +1086,9 @@ async def safe_button_click(callback, button, manager: DialogManager):
 
 ## Resources
 
-- **Official Docs**: https://aiogram-dialog.readthedocs.io
+- **Official Docs**: https://aiogram-dialog.readthedocs.io/en/stable/
 - **GitHub**: https://github.com/Tishka17/aiogram_dialog
-- **Examples**: https://github.com/Tishka17/aiogram_dialog/tree/master/example
+- **Examples**: https://github.com/Tishka17/aiogram_dialog/tree/develop/example
 
 ## Quick Reference
 

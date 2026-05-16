@@ -1,0 +1,6 @@
+# Local OMX workflow/state artifacts
+.omx/
+
+# Python bytecode from validation runs
+__pycache__/
+*.py[cod]

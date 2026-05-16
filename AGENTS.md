@@ -13,7 +13,8 @@ Reference skill for building interactive Telegram bot menus using `aiogram_dialo
 aiogram-dialog-menus/
 ├── SKILL.md    # Complete reference (~1120 lines, 35+ widget types)
 ├── AGENTS.md   # This file — agent navigation guide
-└── README.md   # Installation + usage for humans
+├── README.md   # Installation + usage for humans
+└── scripts/    # Dependency-free validation checks for source drift
 ```
 
 ## WHERE TO LOOK
@@ -42,7 +43,7 @@ aiogram-dialog-menus/
 | Migration | "Migration from v1 to v2" | Registry→setup_dialogs, Adapter rename |
 
 ## CONVENTIONS
-- **Stack**: Python ≥3.9, aiogram ≥3.14, aiogram-dialog v2.x (latest 2.6.0)
+- **Stack**: Python ≥3.10, aiogram ≥3.14, aiogram-dialog v2.x (latest 2.6.0)
 - **Data access**: `dialog_data["key"]` dict-style (NOT `dialog_data.key` attribute access)
 - **Getters**: Must return `dict` — never `None`, never fail silently
 - **Navigation**: Use dedicated widgets (SwitchTo/Next/Back/Cancel/Start) over custom `on_click`
@@ -58,6 +59,11 @@ aiogram-dialog-menus/
 | `Counter(on_text_change=...)` | `Counter(on_text_click=...)` — correct param name |
 | `CopyText(text, id="x", copy_text="y")` | `CopyText(text, copy_text=Const("y"))` — no `id` |
 | `RequestContact(text, id="x")` | `RequestContact(text)` — no `id` param |
+| `Const("{item}")` for dynamic item labels | `Format("{item}")` |
+| `Progress(id="progress")` | `Progress("progress")` — field name, not widget id |
+| `await dialog_manager.bg(...)` | `dialog_manager.bg(...)` — synchronous manager method |
+| `DynamicMedia(type=..., getter=...)` | `DynamicMedia("media")` — selector-based API |
+| `MediaScroll(items=..., item_id_getter=...)` | `MediaScroll(DynamicMedia("item"), items=..., id=...)` |
 | Getter returns `None` | Return `{}` |
 | Custom `on_click` for navigation | Use SwitchTo/Next/Back/Cancel/Start |
 | `Registry` class | `setup_dialogs(dp)` (removed in 2.0b18) |
@@ -68,15 +74,16 @@ aiogram-dialog-menus/
 - **Monolithic skill file**: All content in single SKILL.md (~1120 lines)
 - **Example-driven**: Heavy code snippets, minimal prose
 - **Complete widget index**: Exhaustive table of 35+ widgets at end of file
-- **Source-verified**: All API signatures checked against Tishka17/aiogram_dialog source code
+- **Source-aligned**: Keep API examples checked against Tishka17/aiogram_dialog source code; run `python3 scripts/validate_aiogram_dialog_skill.py` before release
 
 ## COMMANDS
 ```bash
-pip install aiogram>=3.14 aiogram-dialog>=2.0
+pip install "aiogram>=3.14.0" "aiogram-dialog>=2.6.0"
+python3 scripts/validate_aiogram_dialog_skill.py
 ```
 
 ## NOTES
-- External docs: https://aiogram-dialog.readthedocs.io
+- External docs: https://aiogram-dialog.readthedocs.io/en/stable/
 - GitHub: Tishka17/aiogram_dialog
 - `setup_dialogs(dp)` must be called AFTER `dp.include_router(dialog)`
 - `StartMode.RESET_STACK` for main menu entry; `NORMAL` for sub-dialogs
