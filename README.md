@@ -124,7 +124,7 @@ pip install "aiogram>=3.14.0" "aiogram-dialog>=2.6.0"
 | **Best practices** | Widget IDs, getter performance, exception handling |
 | **Common mistakes** | Source-aligned gotchas and corrections |
 | **Migration** | v1 → v2 breaking changes |
-| **Widget index** | Complete table of 35+ widgets with signatures |
+| **Widget index** | Complete table of 35+ widgets with purposes and managed variants |
 
 ## Validation
 

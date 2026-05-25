@@ -79,13 +79,52 @@ def local_checks() -> None:
 
     check("ShowMode.SEND_AND_EDIT" not in skill,
           "ShowMode.SEND_AND_EDIT is not an upstream enum value")
-    check("CalendarScope" not in skill and "scopes=" not in skill,
-          "CalendarConfig example must not use CalendarScope/scopes")
+    check("scopes=" not in skill,
+          "CalendarConfig example must not use removed scopes= parameter")
     check("min_date=date(" in skill and "max_date=date(" in skill,
           "CalendarConfig example should use datetime.date values")
     example_sections = skill[:skill.find("## Common Mistakes")]
     check(not re.search(r"Const\([\"'][^\"']*\{item", example_sections),
           "dynamic item labels must use Format(...), not Const(...)")
+
+    quick_start = skill[
+        skill.find("## Quick Start"):skill.find("## Widget Reference")
+    ]
+    include_pos = quick_start.find("dp.include_router(dialog)")
+    setup_pos = quick_start.find("setup_dialogs(dp)")
+    check(
+        include_pos != -1 and setup_pos != -1 and include_pos < setup_pos,
+        "Quick Start should call setup_dialogs(dp) after dp.include_router(dialog)",
+    )
+
+    check(
+        "selector=lambda data, manager" not in skill,
+        "Case selector callables receive (data, widget, manager); "
+        "use selector='role' or a 3-arg callable",
+    )
+
+    check(
+        "on_process_unknown_intent" not in skill
+        and "on_process_unknown_state" not in skill,
+        "Dialog constructor does not accept unknown-intent/state handler kwargs",
+    )
+
+    main_menu = skill[
+        skill.find("### Main Menu Pattern"):skill.find("### Wizard Pattern")
+    ]
+    for state_name in ("profile", "settings", "stats"):
+        check(
+            f"    {state_name} = State()" in main_menu,
+            f"Main Menu Pattern should define MainMenu.{state_name} "
+            "before referencing it",
+        )
+
+    check(
+        "#### StubScroll" in skill
+        and "`StubScroll`" in skill[skill.find("## Complete Widget Index"):],
+        "StubScroll is exported upstream and claimed in README coverage; "
+        "document it in SKILL.md",
+    )
 
     check('Progress(\n    "progress"' in skill,
           "Progress example must pass the data field name as the first argument")
@@ -145,8 +184,24 @@ def upstream_checks(upstream_root: Path) -> None:
           f"unexpected DynamicMedia args: {dynamic_args}")
 
     media_scroll_args = class_init_args(src / "widgets/media/scroll.py", "MediaScroll")
-    check(media_scroll_args[:4] == ["self", "media", "items", "id"] and "item_id_getter" not in media_scroll_args,
-          f"unexpected MediaScroll args: {media_scroll_args}")
+    check(
+        media_scroll_args[:4] == ["self", "media", "items", "id"]
+        and "item_id_getter" not in media_scroll_args,
+        f"unexpected MediaScroll args: {media_scroll_args}",
+    )
+
+    dialog_args = class_init_args(src / "dialog.py", "Dialog")
+    check(
+        "on_process_unknown_intent" not in dialog_args
+        and "on_process_unknown_state" not in dialog_args,
+        f"unexpected Dialog args: {dialog_args}",
+    )
+
+    stub_scroll_args = class_init_args(src / "widgets/kbd/stub_scroll.py", "StubScroll")
+    check(
+        stub_scroll_args[:3] == ["self", "id", "pages"],
+        f"unexpected StubScroll args: {stub_scroll_args}",
+    )
 
     manager_tree = ast.parse((src / "manager/manager.py").read_text(encoding="utf-8"))
     async_bg = [node for node in ast.walk(manager_tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "bg"]

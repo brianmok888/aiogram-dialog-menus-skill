@@ -60,10 +60,9 @@ Dialog (manages state + navigation)
 
 ```python
 from aiogram import Dispatcher
-from aiogram_dialog import DialogManager, setup_dialogs
+from aiogram_dialog import DialogManager
 
 dp = Dispatcher()
-setup_dialogs(dp)  # Required once at startup
 ```
 
 ### 2. Define States
@@ -83,8 +82,6 @@ class MainMenu(StatesGroup):
 ### 3. Create Window with Button
 
 ```python
-from aiogram_dialog import StartMode
-
 async def on_settings_click(callback, button, manager: DialogManager):
     await manager.switch_to(MainMenu.settings)
 
@@ -98,8 +95,11 @@ main_window = Window(
 ### 4. Create Dialog and Register
 
 ```python
+from aiogram_dialog import setup_dialogs
+
 dialog = Dialog(main_window)
 dp.include_router(dialog)
+setup_dialogs(dp)  # Required once after routers/dialogs are registered
 ```
 
 ### 5. Start Dialog
@@ -352,9 +352,35 @@ ScrollingGroup(
 )
 ```
 
+#### StubScroll
+
+Use `StubScroll` when pagination is controlled outside aiogram-dialog (for example,
+database/API pagination) and you only need a scroll state with a known page count.
+It renders no visible buttons by itself; pair it with pager widgets.
+
+```python
+from aiogram_dialog.widgets.kbd import (
+    StubScroll, NumberedPager, Row, PrevPage, NextPage,
+)
+
+async def external_pages_getter(dialog_manager: DialogManager, **kwargs):
+    return {"pages": await service.page_count()}
+
+# Place these in the Window that uses external_pages_getter as its getter.
+StubScroll(
+    id="external_pages",
+    pages="pages",  # pages can be a data key, int, MagicFilter, or callable
+)
+Row(
+    PrevPage(scroll="external_pages", id="prev_external"),
+    NumberedPager(scroll="external_pages", id="external_pager"),
+    NextPage(scroll="external_pages", id="next_external"),
+)
+```
+
 #### Pager Widgets
 
-Pagination controls for `ScrollingGroup` and other scrollable widgets.
+Pagination controls for `ScrollingGroup`, `StubScroll`, and other scrollable widgets.
 
 ```python
 from aiogram_dialog.widgets.kbd import (
@@ -501,16 +527,17 @@ Multi(
 #### Case
 
 ```python
-from aiogram_dialog.widgets.text import Case
+from aiogram_dialog.widgets.text import Case, Const, Format
 
 # Show different text based on a condition
 Case(
     {
         "admin": Const("🔐 Admin Panel"),
         "user": Format("👤 Hello, {name}"),
-        "guest": Const("👋 Welcome, please /start"),
+        ...: Const("👋 Welcome, please /start"),  # default if role is missing
     },
-    selector=lambda data, manager: data.get("role", "guest"),
+    selector="role",  # selects by data.get("role")
+    # Custom selector callables receive (data, widget, manager).
 )
 ```
 
@@ -835,25 +862,23 @@ dp.errors.register(on_unknown_intent, ExceptionTypeFilter(UnknownIntent))
 dp.errors.register(on_unknown_state, ExceptionTypeFilter(UnknownState))
 ```
 
-Or set handlers directly on the Dialog:
-
-```python
-dialog = Dialog(
-    # ... windows ...
-    on_process_unknown_intent=handle_unknown_intent,
-    on_process_unknown_state=handle_unknown_state,
-)
-```
+Do not pass unknown-intent or unknown-state handler kwargs to `Dialog(...)`.
+`Dialog` supports lifecycle callbacks such as `on_start`, `on_close`, and
+`on_process_result`, while stale callback/state recovery belongs in dispatcher
+error handlers.
 
 ## Common Patterns
 
 ### Main Menu Pattern
 
 ```python
-from aiogram_dialog.widgets.kbd import Row, Cancel
+from aiogram_dialog.widgets.kbd import Row, Cancel, SwitchTo
 
 class MainMenu(StatesGroup):
     main = State()
+    profile = State()
+    settings = State()
+    stats = State()
 
 main_dialog = Dialog(
     Window(
@@ -1158,6 +1183,7 @@ manager.dialog_data["key"] = value
 | `Column` | Vertical layout | — |
 | `Group` | Grid layout with width | — |
 | `ScrollingGroup` | Paginated scrollable group | — |
+| `StubScroll` | Invisible scroll state for external pagination | — |
 | `PrevPage` / `NextPage` | Pagination buttons | — |
 | `FirstPage` / `LastPage` | Jump to first/last page | — |
 | `CurrentPage` | Show current page number | — |
