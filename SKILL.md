@@ -42,7 +42,8 @@ Dialog (manages state + navigation)
         ├── Text widgets (message content)
         ├── Keyboard widgets (inline buttons)
         ├── Media widgets (photos, videos, documents)
-        └── Input widgets (text/message handlers)
+        ├── Input widgets (text/message handlers)
+        └── LinkPreview widget (message link-preview options)
 ```
 
 ### Key Components
@@ -50,7 +51,7 @@ Dialog (manages state + navigation)
 1. **StatesGroup** - Define dialog states
 2. **Dialog** - Container for windows
 3. **Window** - Single screen with widgets
-4. **Widgets** - Buttons, selectors, inputs, media, text
+4. **Widgets** - Buttons, selectors, inputs, media, text, link previews
 5. **Getters** - Async functions providing data to windows
 6. **Managed Widgets** - Access widget state via `manager.find("widget_id")`
 
@@ -440,14 +441,27 @@ SwitchInlineQueryChosenChatButton(Const("💬 Choose Chat"), query=Const("search
 
 #### Request Buttons
 
-These render Telegram reply-keyboard request buttons (not inline buttons). No `id` parameter.
+These render Telegram reply-keyboard request buttons (not inline buttons). No
+`id` parameter. Use them inside a `Window` with `ReplyKeyboardFactory`; the
+default inline keyboard factory is not valid for Telegram `KeyboardButton`
+request buttons. Reply keyboards also cannot be used in non-default stacks.
 
 ```python
-from aiogram_dialog.widgets.kbd import RequestContact, RequestLocation, RequestPoll
+from aiogram_dialog import Window
+from aiogram_dialog.widgets.kbd import RequestContact, RequestLocation, RequestPoll, Row
+from aiogram_dialog.widgets.markup.reply_keyboard import ReplyKeyboardFactory
+from aiogram_dialog.widgets.text import Const
 
-RequestContact(Const("📱 Share Phone"))
-RequestLocation(Const("📍 Share Location"))
-RequestPoll(Const("📊 Create Poll"))  # Optional: poll_type="regular" or "quiz"
+contact_window = Window(
+    Const("Choose what to share:"),
+    Row(
+        RequestContact(Const("📱 Share Phone")),
+        RequestLocation(Const("📍 Share Location")),
+    ),
+    RequestPoll(Const("📊 Create Poll"), poll_type="regular"),
+    markup_factory=ReplyKeyboardFactory(resize_keyboard=True),
+    state=Profile.share,
+)
 ```
 
 #### CopyText
@@ -694,6 +708,38 @@ MediaScroll(
 )
 ```
 
+### Link Preview Widgets
+
+Link preview widgets are in `aiogram_dialog.widgets.link_preview`. They control
+Telegram link preview options for a `Window`.
+
+```python
+from aiogram_dialog import Window
+from aiogram_dialog.widgets.link_preview import LinkPreview
+from aiogram_dialog.widgets.text import Const
+
+# Disable previews for URLs in the message text
+Window(
+    Const("https://example.com/private"),
+    LinkPreview(is_disabled=True),
+    state=Article.preview_off,
+)
+
+# Or render a specific preview URL with display preferences
+Window(
+    Const("Read the announcement"),
+    LinkPreview(
+        url=Const("https://example.com/announcement"),
+        prefer_small_media=True,
+        show_above_text=True,
+    ),
+    state=Article.preview_on,
+)
+```
+
+Prefer `LinkPreview(is_disabled=True)` over Window's deprecated
+`disable_web_page_preview` parameter.
+
 ## Data Flow
 
 ### Getters (Window Data Provider)
@@ -742,6 +788,27 @@ async def sub_getter(dialog_manager: DialogManager, **kwargs):
     return {"parent_id": parent_id}
 ```
 
+## Hiding Widgets with `when`
+
+Rendered widgets such as text, keyboards, media, groups, and link previews are
+`when`-able and can be shown or hidden from getter/dialog data. Use a data key
+for simple flags, `magic_filter.F` for structured data, or a predicate
+receiving `(data, widget, manager)`.
+
+```python
+from magic_filter import F
+from aiogram_dialog.widgets.kbd import Button
+from aiogram_dialog.widgets.text import Const
+
+Button(Const("Admin"), id="admin", when="is_admin")
+Button(Const("Has profile"), id="profile", when=F["dialog_data"]["profile"])
+
+def show_beta(data, widget, manager: DialogManager) -> bool:
+    return manager.dialog_data.get("plan") == "beta"
+
+Button(Const("Beta tools"), id="beta", when=show_beta)
+```
+
 ## Launch Modes
 
 ### StartMode (Stack Behavior)
@@ -785,6 +852,32 @@ await manager.switch_to(MyState.settings, show_mode=ShowMode.EDIT)
 await manager.start(MyState.main, show_mode=ShowMode.SEND)
 ```
 
+`ShowMode` applies to the next update, then resets to `AUTO`. Current modes are
+`AUTO`, `EDIT`, `SEND`, `DELETE_AND_SEND`, and `NO_UPDATE`.
+
+### Groups and Business Chats
+
+Interactive dialogs in groups/business chats use separate dialog stacks. Use a
+background manager with `GROUP_STACK_ID` for shared group dialogs, pass
+`thread_id` for topics, and pass `AccessSettings` when only specific users may
+interact.
+
+```python
+from aiogram_dialog import AccessSettings, GROUP_STACK_ID, StartMode
+
+bg = dialog_manager.bg(stack_id=GROUP_STACK_ID, thread_id=topic_id)
+await bg.start(GroupMenu.main, mode=StartMode.RESET_STACK)
+
+await dialog_manager.start(
+    GroupMenu.admin,
+    mode=StartMode.RESET_STACK,
+    access_settings=AccessSettings(user_ids=[admin_id]),
+)
+```
+
+Telegram heavily limits operations in groups; prefer private chats for complex
+interactive menus. Reply keyboards cannot be rendered in non-default stacks.
+
 ## Background Manager
 
 Send dialog updates from background tasks (e.g., after async work completes).
@@ -798,9 +891,8 @@ bg_factory = setup_dialogs(dp)
 
 # In a background task
 async def background_task(bg_manager):
-    # Update dialog data
-    bg_manager.dialog_data["result"] = "done"
-    await bg_manager.update()
+    # BgManager cannot read current dialog_data; pass update data explicitly.
+    await bg_manager.update(data={"result": "done"})
 
     # Foreground mode for full dialog manager access (async context manager)
     async with bg_manager.fg() as dialog_manager:
@@ -1011,6 +1103,7 @@ browse_window = Window(
         id="items_scroll",
         width=1,
         height=5,
+        hide_pager=True,  # Use the external NumberedPager below
     ),
     NumberedPager(scroll="items_scroll", id="pager"),
     getter=items_getter,
@@ -1051,11 +1144,12 @@ list_group = manager.find("items_list")  # ManagedListGroup
 ### Widget IDs
 
 ```python
-# ALWAYS set unique IDs for widgets
+# Set unique IDs for actionable/stateful widgets that accept id=
 Button(Const("Click"), id="unique_button_id")  # ✓
 
-# Widget IDs must be unique within the dialog
-# They're used for state tracking and callbacks
+# Widget IDs must be unique within the dialog.
+# Widget id can contain only ascii letters, numbers, underscore, and dot.
+# Valid: "com.example.menu", "settings_1"; invalid: "hello world", "menu:item".
 ```
 
 ### Getter Performance
@@ -1076,10 +1170,12 @@ async def bad_getter(**kwargs):
 async def safe_button_click(callback, button, manager: DialogManager):
     try:
         await risky_operation()
-    except Exception as e:
-        logger.error(f"Button error: {e}")
+    except ExpectedDomainError:
+        logger.exception("Button action failed")
         await callback.answer("❌ An error occurred", show_alert=True)
-        # Don't let exceptions propagate - they crash the bot
+        return
+
+    # Let unexpected exceptions propagate to dispatcher error handlers.
 ```
 
 ## Common Mistakes
@@ -1089,7 +1185,7 @@ async def safe_button_click(callback, button, manager: DialogManager):
 3. **Getter returning `None`** — TypeError, always return `{}`
 4. **Not using `StartMode.RESET_STACK`** for main menus — Stack overflow
 5. **Wrong `item_id_getter`** — Selection fails
-6. **Exceptions in callbacks** — Crashes bot, always catch
+6. **Catching every callback error** — Hides bugs; catch expected domain errors only
 7. **Blocking operations in getter** — Blocks event loop
 8. **Using deprecated `Registry` class** — Use `setup_dialogs(dp)` instead
 9. **Writing custom `on_click` for navigation** — Use `SwitchTo`, `Next`, `Back`, `Cancel`, `Start` widgets instead
@@ -1211,9 +1307,17 @@ manager.dialog_data["key"] = value
 | `DynamicMedia` | Getter-based dynamic media |
 | `MediaScroll` | Scrollable media gallery |
 
+### Link Preview Widgets (`aiogram_dialog.widgets.link_preview`)
+
+| Widget | Purpose |
+|--------|---------|
+| `LinkPreview` | Configure or disable Telegram link previews |
+
 ### Input Widgets (`aiogram_dialog.widgets.input`)
 
 | Widget | Purpose |
 |--------|---------|
 | `TextInput` | Text input with type conversion |
+| `ManagedTextInput` | Access saved TextInput value |
 | `MessageInput` | Raw message handler (photos, docs, etc.) |
+| `CombinedInput` | Compose multiple input handlers under one filter |

@@ -11,6 +11,7 @@ Provides expert knowledge for creating:
 - Admin panels with toggleable settings
 - Calendar/date pickers
 - Media galleries with scrolling
+- Link previews and visibility-controlled widgets
 - Paginated item lists
 - Any complex stateful user interaction
 
@@ -114,9 +115,12 @@ pip install "aiogram>=3.14.0" "aiogram-dialog>=2.6.0"
 | **Layout** | Row, Column, Group (width-based wrapping) |
 | **Text widgets** | Const, Format, Multi, Case, Progress, List, Jinja, ScrollingText |
 | **Media** | StaticMedia, DynamicMedia, MediaScroll |
+| **Link previews** | LinkPreview for disabling/configuring Telegram previews |
 | **Input** | TextInput (type_factory, on_success/on_error), MessageInput |
 | **Data flow** | Getters (dict return), dialog_data (dict access), start_data |
 | **Launch modes** | StartMode, LaunchMode, ShowMode |
+| **Visibility** | Universal `when=` hiding with data keys, predicates, or `magic_filter.F` |
+| **Groups/business** | GROUP_STACK_ID, AccessSettings, thread/business stack caveats |
 | **Background** | BgManagerFactory, bg(), fg() context manager |
 | **Managed widgets** | `manager.find()` → Managed* variants |
 | **Error handling** | UnknownIntent/UnknownState via ExceptionTypeFilter |

@@ -149,6 +149,49 @@ def local_checks() -> None:
 
     check("reply-keyboard request buttons" in skill,
           "RequestContact/Location/Poll should be documented as reply-keyboard buttons")
+    request_buttons = skill[
+        skill.find("#### Request Buttons"):skill.find("#### CopyText")
+    ]
+    check("ReplyKeyboardFactory" in request_buttons,
+          "RequestContact/Location/Poll example must show ReplyKeyboardFactory")
+    check("non-default stacks" in request_buttons,
+          "Request buttons should warn about reply keyboards in non-default stacks")
+
+    paginated_list = skill[
+        skill.find("### Paginated List Pattern"):skill.find("## Managed Widgets")
+    ]
+    check("hide_pager=True" in paginated_list,
+          "External pager example should set ScrollingGroup(hide_pager=True)")
+
+    check("bg_manager.dialog_data" not in skill,
+          "BgManager has no dialog_data; use bg_manager.update(data=...) or fg()")
+    check("await bg_manager.update(data=" in skill,
+          "background manager example should pass data via update(data=...)")
+
+    check("except Exception" not in skill,
+          "callback examples must not swallow unexpected exceptions broadly")
+
+    check("LinkPreview" in skill and "widgets.link_preview" in skill,
+          "LinkPreview is an upstream widget kind and must be documented")
+    check("LinkPreview" in readme and "LinkPreview" in agents,
+          "README and AGENTS coverage should mention LinkPreview")
+    check("disable_web_page_preview=True" not in skill,
+          "do not show deprecated disable_web_page_preview examples")
+
+    check("when=" in skill and "magic_filter" in skill,
+          "universal widget hiding via when= should be documented")
+    hiding = skill[
+        skill.find("## Hiding Widgets with `when`"):skill.find("## Launch Modes")
+    ]
+    check("inputs" not in hiding,
+          "when= guidance must not claim input handlers accept when")
+    check("Widget id can contain only ascii letters" in skill,
+          "widget ID guidance should include upstream charset restrictions")
+    check("AccessSettings" in skill and "GROUP_STACK_ID" in skill,
+          "group/business dialog stack guidance should be documented")
+    check("**Commit:**" not in agents and "**Branch:**" not in agents,
+          "AGENTS.md should not carry stale generated commit/branch metadata")
+
     check("All API signatures checked" not in agents,
           "AGENTS.md must not overclaim all signatures are currently checked")
     check("Source-verified gotchas" not in readme,
@@ -202,6 +245,30 @@ def upstream_checks(upstream_root: Path) -> None:
         stub_scroll_args[:3] == ["self", "id", "pages"],
         f"unexpected StubScroll args: {stub_scroll_args}",
     )
+
+    link_preview_args = class_init_args(src / "widgets/link_preview/base.py", "LinkPreview")
+    check(
+        link_preview_args[:6] == [
+            "self", "url", "is_disabled", "prefer_small_media",
+            "prefer_large_media", "show_above_text",
+        ] and "when" in link_preview_args,
+        f"unexpected LinkPreview args: {link_preview_args}",
+    )
+
+    scrolling_args = class_init_args(src / "widgets/kbd/scrolling_group.py", "ScrollingGroup")
+    check("hide_pager" in scrolling_args,
+          f"unexpected ScrollingGroup args: {scrolling_args}")
+
+    for request_class in ("RequestContact", "RequestLocation", "RequestPoll"):
+        request_args = class_init_args(src / "widgets/kbd/request.py", request_class)
+        check("id" not in request_args,
+              f"unexpected {request_class} args: {request_args}")
+
+    reply_factory_args = class_init_args(
+        src / "widgets/markup/reply_keyboard.py", "ReplyKeyboardFactory",
+    )
+    check("resize_keyboard" in reply_factory_args,
+          f"unexpected ReplyKeyboardFactory args: {reply_factory_args}")
 
     manager_tree = ast.parse((src / "manager/manager.py").read_text(encoding="utf-8"))
     async_bg = [node for node in ast.walk(manager_tree) if isinstance(node, ast.AsyncFunctionDef) and node.name == "bg"]

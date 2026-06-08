@@ -1,17 +1,15 @@
 # AIODIALOG-MENUS SKILL KNOWLEDGE BASE
 
-**Generated:** 2026-03-30
-**Commit:** 0fad6f0
-**Branch:** main
+**Maintained:** 2026-06-08
 **Type:** AI Coding Agent Skill (OpenCode, Claude, Codex, etc.)
 
 ## OVERVIEW
-Reference skill for building interactive Telegram bot menus using `aiogram_dialog` (v2.x, latest 2.6.0). Dialog > Windows > Widgets architecture with Python async patterns.
+Reference skill for building interactive Telegram bot menus using `aiogram_dialog` (v2.x, latest 2.6.0). Dialog > Windows > Widgets architecture with Python async patterns, link previews, and stack-aware interaction guidance.
 
 ## STRUCTURE
 ```
 aiogram-dialog-menus/
-├── SKILL.md    # Complete reference (~1120 lines, 35+ widget types)
+├── SKILL.md    # Complete reference (~1250 lines, 35+ widget types)
 ├── AGENTS.md   # This file — agent navigation guide
 ├── README.md   # Installation + usage for humans
 └── scripts/    # Dependency-free validation checks for source drift
@@ -34,9 +32,12 @@ aiogram-dialog-menus/
 | Layout | "Layout Widgets" | Row, Column, Group |
 | Text content | "Text Widgets" | Const, Format, Multi, Case, Progress, List, Jinja |
 | Media | "Media Widgets" | StaticMedia, DynamicMedia, MediaScroll |
+| Link previews | "Link Preview Widgets" | LinkPreview configuration and preview disabling |
 | Input handling | "Input Widgets" | TextInput, MessageInput |
 | Data flow | "Getters" / "dialog_data" / "start_data" | getter returns dict, dialog_data dict access |
 | Navigation modes | "Launch Modes" | StartMode, LaunchMode, ShowMode |
+| Visibility | "Hiding Widgets with `when`" | data-key, predicate, and magic_filter visibility |
+| Group/business chats | "Groups and Business Chats" | GROUP_STACK_ID, AccessSettings, thread/business caveats |
 | Background tasks | "Background Manager" | BgManagerFactory, bg(), fg() |
 | Widget state | "Managed Widgets" | manager.find(), Managed* variants |
 | Error handling | "Error Handling" | UnknownIntent, UnknownState, ExceptionTypeFilter |
@@ -48,6 +49,7 @@ aiogram-dialog-menus/
 - **Getters**: Must return `dict` — never `None`, never fail silently
 - **Navigation**: Use dedicated widgets (SwitchTo/Next/Back/Cancel/Start) over custom `on_click`
 - **Widget IDs**: Always set unique `id` for stateful widgets; exceptions: CopyText, RequestContact/Location/Poll (no `id`)
+- **Widget ID charset**: ASCII letters, numbers, underscore, and dot only
 - **URL params**: `url` param on Url/WebApp/LoginURLButton takes `Text` widget, not plain string — use `Const("...")`
 - **Error handling**: Register `UnknownIntent`+`UnknownState` via `dp.errors.register()` with `ExceptionTypeFilter`
 
@@ -62,8 +64,10 @@ aiogram-dialog-menus/
 | `Const("{item}")` for dynamic item labels | `Format("{item}")` |
 | `Progress(id="progress")` | `Progress("progress")` — field name, not widget id |
 | `await dialog_manager.bg(...)` | `dialog_manager.bg(...)` — synchronous manager method |
+| `bg_manager.dialog_data[...]` | `await bg_manager.update(data={...})`, or use `async with bg_manager.fg()` |
 | `DynamicMedia(type=..., getter=...)` | `DynamicMedia("media")` — selector-based API |
 | `MediaScroll(items=..., item_id_getter=...)` | `MediaScroll(DynamicMedia("item"), items=..., id=...)` |
+| `Window(..., disable_web_page_preview=...)` | `LinkPreview(is_disabled=True)` |
 | Getter returns `None` | Return `{}` |
 | Custom `on_click` for navigation | Use SwitchTo/Next/Back/Cancel/Start |
 | `Registry` class | `setup_dialogs(dp)` (removed in 2.0b18) |
@@ -71,7 +75,7 @@ aiogram-dialog-menus/
 | `*Adapter` suffix on managed widgets | Simplified: ManagedCalendar, ManagedCheckbox, etc. |
 
 ## UNIQUE STYLES
-- **Monolithic skill file**: All content in single SKILL.md (~1120 lines)
+- **Monolithic skill file**: All content in single SKILL.md (~1250 lines)
 - **Example-driven**: Heavy code snippets, minimal prose
 - **Complete widget index**: Exhaustive table of 35+ widgets at end of file
 - **Source-aligned**: Keep API examples checked against Tishka17/aiogram_dialog source code; run `python3 scripts/validate_aiogram_dialog_skill.py` before release
